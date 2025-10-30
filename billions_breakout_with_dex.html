@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Billions Breakout v3 (Final) — Made by Dex</title>
+  <style>
+    :root{--bg1:#000814;--bg2:#071227;--accent:#FFD05B}
+    html,body{height:100%;margin:0;font-family:Inter,system-ui,Segoe UI,Arial;background:linear-gradient(180deg,var(--bg1),var(--bg2));color:#e6eef8}
+    .container{display:flex;align-items:center;justify-content:center;height:100vh}
+    .game-wrap{width:360px;height:640px;border-radius:12px;overflow:hidden;box-shadow:0 10px 40px rgba(2,6,23,.6);position:relative;background:#021022}
+    canvas{display:block;width:100%;height:100%;background:transparent}
+    .overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
+    .card{pointer-events:auto;background:rgba(4,8,16,0.94);padding:18px;border-radius:12px;text-align:center;width:88%}
+    .card h2{margin:0 0 8px 0}
+    .card p{margin:0 0 12px 0;color:#cddff7}
+    button.primary{background:var(--accent);color:#071227;border:none;padding:10px 14px;border-radius:8px;font-weight:700;cursor:pointer}
+    .hud{position:absolute;left:10px;top:8px;font-size:13px}
+    .hud .stat{background:rgba(255,255,255,0.03);padding:6px 8px;border-radius:8px;margin-bottom:6px}
+    .sidebar-note{position:absolute;right:8px;top:8px;font-size:11px;opacity:.8}
+    .modal{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;visibility:hidden}
+    .modal.show{visibility:visible}
+    .modal-backdrop{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0.85),rgba(2,6,23,0.9));}
+    .modal-card{position:relative;background:linear-gradient(180deg,#071427,#021022);padding:18px;border-radius:12px;width:86%;box-shadow:0 6px 30px rgba(0,0,0,0.6);transform:translateY(0);opacity:1}
+    .modal-card h1{margin:0 0 6px 0;font-size:22px;color:#ffd2a1}
+    .modal-card p{margin:6px 0;color:#dceeff}
+    .small{font-size:12px;color:#cfe3ff}
+    .top-controls{position:absolute;left:50%;transform:translateX(-50%);top:6px;display:flex;gap:8px}
+    .btn-ghost{background:transparent;border:1px solid rgba(255,255,255,0.06);color:#e6eef8;padding:6px 8px;border-radius:8px;cursor:pointer}
+    .developed{margin-top:8px;font-size:12px;color:#a9c0ff}
+    @keyframes fadeIn { from { transform: translateY(8px); opacity:0 } to { transform:translateY(0); opacity:1 } }
+    .modal-card{animation:fadeIn .28s ease both}
+
+    /* Made by Dex watermark (bottom-center) */
+    .dex-watermark {
+      position: absolute;
+      bottom: 8px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 12px;
+      color: rgba(255,255,255,0.30);
+      font-weight: 600;
+      letter-spacing: 0.6px;
+      user-select: none;
+      pointer-events: none;
+      text-shadow: 0 1px 0 rgba(0,0,0,0.4);
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="game-wrap" id="gameWrap">
+      <canvas id="game" width="360" height="640"></canvas>
+
+      <div class="hud" id="hud">
+        <div class="stat">Score: <span id="score">0</span></div>
+        <div class="stat">Lives: <span id="lives">3</span></div>
+        <div class="stat small">Level: <span id="level">1</span></div>
+      </div>
+
+      <div class="top-controls">
+        <button id="pauseBtn" class="btn-ghost">Pause</button>
+        <button id="resetBtn" class="btn-ghost">Reset</button>
+      </div>
+
+      <div class="sidebar-note">Billions Breakout v3</div>
+
+      <!-- Start overlay (Main Menu) -->
+      <div class="overlay" id="startOverlay">
+        <div class="card">
+          <h2>Billions Breakout</h2>
+          <p>Portrait optimized. Arrow keys or touch to move. Space to launch.</p>
+          <div style="display:flex;gap:8px;justify-content:center">
+            <button id="startBtn" class="primary">Start Game</button>
+            <button id="startLevelBtn" class="btn-ghost">Start at Level 2</button>
+          </div>
+          <p class="small" style="margin-top:12px">Levels: 1 → 2 → 3 (2-hit) → 4. Obstacles & power-ups drop rarely from bricks.</p>
+        </div>
+      </div>
+
+      <!-- Game Over modal (solid dark gradient backdrop) -->
+      <div id="gameOver" class="modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-card">
+          <h1 id="goTitle">GAME OVER</h1>
+          <p style="font-weight:700">Final score: <span id="finalScore">0</span></p>
+          <p>System judgment: <strong id="systemJudge">-</strong></p>
+          <div style="margin:10px 0"><img id="goAd" src="asset/ad.jpg.jpg" alt="ad" style="width:100%;border-radius:8px" onerror="this.style.display='none'"></div>
+          <div style="display:flex;gap:10px;justify-content:center;margin-top:8px"><button id="playAgainBtn" class="primary">Restart</button><button id="mainMenuBtn" class="btn-ghost">Main Menu</button></div>
+          <div class="developed">Developed by Dex</div>
+        </div>
+      </div>
+
+      <!-- bottom-centered watermark -->
+      <div class="dex-watermark">Made by Dex</div>
+
+    </div>
+  </div>
+
+  <script>
+    // ---------- CONFIG & ASSETS
+    const ASSETS = {
+      bg: 'asset/bg.jpg.jpg',
+      paddle: 'asset/paddle.png.jpg',
+      brick: 'asset/brick.png.jpg',
+      ball: 'asset/ball.png.png',
+      ad: 'asset/ad.jpg.jpg'
+    };
+
+    // ---------- Retro sound engine (Web Audio) ----------
+    // This creates short 8-bit style blips using oscillators and envelopes.
+    const AudioEngine = (function(){
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      function playBlip({freq=440, type='square', duration=0.08, volume=0.12, decay=0.08, detune=0} = {}) {
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, now);
+        if (detune) osc.detune.value = detune;
+        gain.gain.setValueAtTime(volume, now);
+        // quick decay envelope
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + decay);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + duration + 0.02);
+      }
+      function playNoise({duration=0.12, volume=0.12} = {}) {
+        // short noise burst (for explosions / gameover)
+        const bufferSize = ctx.sampleRate * duration;
+        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * (1 - i/bufferSize);
+        const src = ctx.createBufferSource();
+        src.buffer = buffer;
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(volume, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration);
+        src.connect(gain);
+        gain.connect(ctx.destination);
+        src.start();
+      }
+      return {
+        // mapping names to short retro patterns
+        bounce() {
+          playBlip({freq: 660, type: 'square', duration: 0.06, volume: 0.10, decay: 0.06});
+        },
+        brick() {
+          // two-tone short blip
+          playBlip({freq: 880, type: 'square', duration: 0.06, volume: 0.12, decay:0.05});
+          setTimeout(()=> playBlip({freq: 660, type:'square', duration:0.06, volume:0.08, decay:0.05}), 45);
+        },
+        partialHit() {
+          playBlip({freq: 780, type:'sawtooth', duration:0.05, volume:0.08, decay:0.05});
+        },
+        life() {
+          // chime-ish retro (rising two notes)
+          playBlip({freq: 660, type:'triangle', duration:0.08, volume:0.10, decay:0.08});
+          setTimeout(()=> playBlip({freq: 990, type:'triangle', duration:0.10, volume:0.10, decay:0.09}), 80);
+        },
+        lifeLost() {
+          playBlip({freq: 220, type:'square', duration:0.18, volume:0.14, decay:0.16});
+        },
+        gameover() {
+          // noise + low buzz
+          playNoise({duration:0.35, volume:0.16});
+          playBlip({freq: 150, type:'square', duration:0.35, volume:0.14, decay:0.28});
+        }
+      };
+    })();
+
+    function tryResumeAudio() {
+      // some browsers require user interaction — resume on first interaction
+      if (AudioEngine && typeof AudioContext !== 'undefined') {
+        if ((AudioContext && AudioContext.state === 'suspended') || (window.audioCtx && window.audioCtx.state === 'suspended')) {
+          try { (new (window.AudioContext || window.webkitAudioContext)()).resume(); } catch(e) {}
+        }
+      }
+    }
+    window.addEventListener('click', tryResumeAudio, {once:true});
+    window.addEventListener('keydown', tryResumeAudio, {once:true});
+
+    function playSound(name){
+      try{
+        if(!AudioEngine) return;
+        switch(name){
+          case 'bounce': AudioEngine.bounce(); break;
+          case 'brick': AudioEngine.brick(); break;
+          case 'partial': AudioEngine.partialHit(); break;
+          case 'life': AudioEngine.life(); break;
+          case 'lifelost': AudioEngine.lifeLost(); break;
+          case 'gameover': AudioEngine.gameover(); break;
+          default: break;
+        }
+      }catch(e){}
+    }
+
+    // Canvas
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+
+    // Load images
+    const imgBg = new Image(); imgBg.src = ASSETS.bg; let bgReady=false; imgBg.onload=()=>bgReady=true;
+    const imgPaddle = new Image(); imgPaddle.src = ASSETS.paddle;
+    const imgBrick = new Image(); imgBrick.src = ASSETS.brick;
+    const imgBall = new Image(); imgBall.src = ASSETS.ball;
+
+    // Game state
+    let score = 0; let lives = 3; let currentLevel = 1; const maxLevel = 4;
+    const scoreEl = document.getElementById('score'); const livesEl = document.getElementById('lives'); const levelEl = document.getElementById('level');
+
+    // Level settings (adjusted densities)
+    const LEVELS = {
+      1: { ballSpeed:4, paddleWidth:92, brickRows:4, brickCols:7, brickHits:1 },
+      2: { ballSpeed:5.2, paddleWidth:88, brickRows:5, brickCols:8, brickHits:1 },
+      3: { ballSpeed:5.6, paddleWidth:82, brickRows:6, brickCols:8, brickHits:2 },
+      4: { ballSpeed:6.2, paddleWidth:78, brickRows:6, brickCols:9, brickHits:1 }
+    };
+
+    // Objects
+    let paddle = { w: LEVELS[1].paddleWidth, h: 18, x: (W-LEVELS[1].paddleWidth)/2, y: H-60, speed:6, extendedUntil:0 };
+    let ball = { r: 9, x: W/2, y: H/80, dx:0, dy: -LEVELS[1].ballSpeed, stuck:true };
+    let bricks = [];
+    let obstacles = []; // falling red bot logos
+    let powerups = []; // objects with type: 'life' | 'paddle'
+
+    // Brick geometry will be computed per level
+    let BR = { cols: LEVELS[1].brickCols, rows: LEVELS[1].brickRows, gap:6, top: 56, left: 10, w: 40, h: 18 };
+
+    // Input
+    let touchX = null; let left=false,right=false;
+
+    // Loop
+    let running=false, timer=null;
+
+    // Leaderboard key
+    const LB_KEY = 'billions_breakout_scores_v3_final';
+
+    // Helpers
+    function updateHUD(){ scoreEl.textContent = score; livesEl.textContent = lives; levelEl.textContent = currentLevel; }
+
+    function computeBrickGeometry(){ const cfg = LEVELS[currentLevel]; BR.cols = cfg.brickCols; BR.rows = cfg.brickRows; BR.gap = 6; BR.top = 56; BR.left = 10; BR.w = Math.floor((W - BR.left*2 - (BR.cols-1)*BR.gap)/BR.cols); BR.h = Math.max(12, Math.floor(BR.w * 0.45)); }
+
+    function initBricks(){ bricks = []; computeBrickGeometry(); const hits = LEVELS[currentLevel].brickHits || 1; for(let r=0;r<BR.rows;r++){ for(let c=0;c<BR.cols;c++){ const x = BR.left + c*(BR.w+BR.gap); const y = BR.top + r*(BR.h+BR.gap); bricks.push({x,y,w:BR.w,h:BR.h,alive:true, hits: hits, points: (BR.rows-r)*10}); } } }
+
+    function resetBall(){ ball.r = 9; ball.x = paddle.x + paddle.w/2; ball.y = paddle.y - ball.r - 4; ball.dx = 0; ball.dy = -LEVELS[currentLevel].ballSpeed; ball.stuck = true; }
+    function resetGame(full=true){ score=0; lives=3; currentLevel=1; updateHUD(); if(full){ setLevel(1); } else { initBricks(); resetBall(); } }
+
+    function setLevel(n){ currentLevel = Math.min(maxLevel, Math.max(1,n)); const cfg = LEVELS[currentLevel]; paddle.w = cfg.paddleWidth; paddle.x = Math.max(4, Math.min(W - paddle.w -4, (W-paddle.w)/2)); computeBrickGeometry(); initBricks(); resetBall(); updateHUD(); }
+
+    // Draw
+    function drawBackground(){ if(bgReady) ctx.drawImage(imgBg,0,0,W,H); else { const g = ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,'#071227'); g.addColorStop(1,'#021022'); ctx.fillStyle=g; ctx.fillRect(0,0,W,H); } }
+    function drawBricks(){ for(const b of bricks){ if(!b.alive) continue; if(imgBrick.complete && imgBrick.naturalWidth) ctx.drawImage(imgBrick,b.x,b.y,b.w,b.h); else { ctx.fillStyle='#ff8a65'; ctx.fillRect(b.x,b.y,b.w,b.h); } if(b.hits>1){ ctx.fillStyle='rgba(0,0,0,0.25)'; ctx.fillRect(b.x+4,b.y+4,16,12); ctx.fillStyle='#fff'; ctx.fillText(b.hits, b.x+8, b.y+14); } } }
+    function drawPaddle(){ if(paddle.extendedUntil > Date.now()){ const extW = Math.min(W-8, paddle.w + 36); if(imgPaddle.complete && imgPaddle.naturalWidth) ctx.drawImage(imgPaddle,paddle.x - ((extW-paddle.w)/2),paddle.y,extW,paddle.h); else { ctx.fillStyle='#32d1ff'; ctx.fillRect(paddle.x - ((extW-paddle.w)/2),paddle.y,extW,paddle.h); } } else { if(imgPaddle.complete && imgPaddle.naturalWidth) ctx.drawImage(imgPaddle,paddle.x,paddle.y,paddle.w,paddle.h); else { ctx.fillStyle='#ffd05b'; ctx.fillRect(paddle.x,paddle.y,paddle.w,paddle.h);} } }
+    function drawBall(){ if(imgBall.complete && imgBall.naturalWidth) ctx.drawImage(imgBall,ball.x-ball.r,ball.y-ball.r,ball.r*2,ball.r*2); else { ctx.beginPath(); ctx.arc(ball.x,ball.y,ball.r,0,Math.PI*2); ctx.fillStyle='#fff'; ctx.fill(); } }
+    function drawObstacles(){ for(const o of obstacles){ ctx.beginPath(); ctx.fillStyle='red'; ctx.arc(o.x,o.y,o.r,0,Math.PI*2); ctx.fill(); ctx.closePath(); } }
+    function drawPowerups(){ for(const p of powerups){ if(p.type==='life'){ ctx.beginPath(); ctx.fillStyle='#2ea1ff'; ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill(); ctx.closePath(); } else if(p.type==='paddle'){ ctx.fillStyle='#2fe2c9'; ctx.fillRect(p.x - p.w/2, p.y - p.h/2, p.w, p.h); } } }
+
+    function draw(){ ctx.clearRect(0,0,W,H); drawBackground(); drawBricks(); drawPaddle(); drawBall(); drawObstacles(); drawPowerups(); }
+
+    // Collision helpers: improved single-brick collision handling
+    function rectCircleColliding(cx,cy,r,rx,ry,rw,rh){ const nearestX = Math.max(rx, Math.min(cx, rx+rw)); const nearestY = Math.max(ry, Math.min(cy, ry+rh)); const dx = cx - nearestX; const dy = cy - nearestY; return (dx*dx + dy*dy) <= r*r; }
+
+    function step(){ // input move
+      if(touchX !== null){ paddle.x = touchX - paddle.w/2; }
+      if(left) paddle.x -= paddle.speed; if(right) paddle.x += paddle.speed;
+      paddle.x = Math.max(4, Math.min(W - paddle.w - 4, paddle.x));
+
+      if(ball.stuck){ ball.x = paddle.x + paddle.w/2; ball.y = paddle.y - ball.r - 4; }
+      else {
+        // move ball in small substeps to reduce tunneling
+        const steps = 3; const dxStep = ball.dx/steps; const dyStep = ball.dy/steps;
+        for(let s=0;s<steps;s++){
+          ball.x += dxStep; ball.y += dyStep;
+          // wall
+          if(ball.x - ball.r < 0){ ball.x = ball.r; ball.dx *= -1; playSound('bounce'); }
+          if(ball.x + ball.r > W){ ball.x = W - ball.r; ball.dx *= -1; playSound('bounce'); }
+          if(ball.y - ball.r < 0){ ball.y = ball.r; ball.dy *= -1; playSound('bounce'); }
+
+          // paddle collision
+          if(ball.y + ball.r >= paddle.y && ball.y + ball.r <= paddle.y + paddle.h && ball.x >= paddle.x && ball.x <= paddle.x + paddle.w && ball.dy>0){
+            const rel = (ball.x - paddle.x) / paddle.w; const ang = (rel - 0.5) * Math.PI * 0.85; const sp = Math.min(12, Math.hypot(ball.dx,ball.dy) + 0.4);
+            ball.dx = sp * Math.sin(ang); ball.dy = -Math.abs(sp * Math.cos(ang));
+            playSound('bounce');
+            break; // stop this substep cycle after paddle collision
+          }
+
+          // brick collision: find the single brick collided (if any)
+          for(const b of bricks){ if(!b.alive) continue; if(rectCircleColliding(ball.x,ball.y,ball.r,b.x,b.y,b.w,b.h)){
+              // register hit
+              b.hits = (b.hits||1) - 1;
+              if(b.hits<=0){
+                b.alive=false;
+                score += b.points;
+                playSound('brick');
+              } else {
+                playSound('partial');
+              }
+              updateHUD();
+
+              // spawn falling items (applies in all levels) - rarer now
+              // chance for obstacle (red bot): 14%
+              if(Math.random() < 0.14) obstacles.push({x: b.x + b.w/2, y: b.y + b.h/2, vy: 1.6 + Math.random()*1.2, r: 9});
+              // chance for life (blue circle): 6%
+              if(Math.random() < 0.06) powerups.push({type:'life', x: b.x + b.w/2, y: b.y + b.h/2, r:7, vy:1.4});
+              // chance for paddle extender: 5%
+              if(Math.random() < 0.05) powerups.push({type:'paddle', x: b.x + b.w/2, y: b.y + b.h/2, w:28, h:10, vy:1.6});
+
+              // sometimes allow a double-break event (12% chance) to break next brick as well
+              if(Math.random() < 0.12){
+                // try to break a neighboring brick horizontally or vertically
+                const neighbors = bricks.filter(bb=>bb.alive && (Math.abs(bb.x - b.x) <= (b.w + 2*BR.gap) && Math.abs(bb.y - b.y) <= (b.h + 2*BR.gap)) && bb !== b);
+                if(neighbors.length>0){ const nb = neighbors[Math.floor(Math.random()*neighbors.length)]; nb.hits = (nb.hits||1) - 1; if(nb.hits<=0){ nb.alive=false; score += nb.points; playSound('brick'); } else { playSound('partial'); } }
+              }
+
+              // reflect: simple vertical invert
+              ball.dy *= -1;
+              // break after handling one brick to avoid multi-break beyond allowed chance
+              break;
+          }}
+        }
+
+        // check bottom
+        if(ball.y - ball.r > H){ lives--; playSound('lifelost'); updateHUD(); if(lives<=0){ onGameOver(); } else { resetBall(); } }
+      }
+
+      // obstacles movement and collisions
+      for(let i=obstacles.length-1;i>=0;i--){ const o = obstacles[i]; o.y += o.vy; // collide with paddle
+        if(o.y + o.r >= paddle.y && o.y - o.r <= paddle.y + paddle.h && o.x >= paddle.x && o.x <= paddle.x + paddle.w){ // hit paddle
+          obstacles.splice(i,1); lives--; playSound('lifelost'); updateHUD(); if(lives<=0){ onGameOver(); return; }
+        } else if(o.y - o.r > H){ obstacles.splice(i,1); }
+      }
+
+      // powerups movement and pickups
+      for(let i=powerups.length-1;i>=0;i--){ const p = powerups[i]; p.y += p.vy; if(p.type==='life'){
+          if(p.y + p.r >= paddle.y && p.x >= paddle.x && p.x <= paddle.x + paddle.w){ // collected
+            powerups.splice(i,1); lives = Math.min(5, lives + 1); playSound('life'); updateHUD();
+          } else if(p.y - p.r > H) powerups.splice(i,1);
+        } else if(p.type==='paddle'){
+          if(p.y + p.h/2 >= paddle.y && p.x >= paddle.x && p.x <= paddle.x + paddle.w){ // collect
+            powerups.splice(i,1); // extend paddle for 10s
+            paddle.extendedUntil = Date.now() + 10000; // 10 seconds
+            playSound('life');
+            updateHUD();
+          } else if(p.y - p.h/2 > H) powerups.splice(i,1);
+        }
+      }
+
+      // if paddle extension expired, ensure paddle width back to level setting
+      if(paddle.extendedUntil < Date.now()){ const cfg = LEVELS[currentLevel]; paddle.w = cfg.paddleWidth; }
+
+      // check level clear
+      if(bricks.every(b=>!b.alive)){
+        if(currentLevel < maxLevel){ setLevel(currentLevel+1); } else { // win
+          stopLoop(); showWin();
+        }
+      }
+
+      draw();
+    }
+
+    function startLoop(){ if(running) return; running=true; timer=setInterval(step,1000/60); document.getElementById('startOverlay').style.display='none'; }
+    function stopLoop(){ running=false; clearInterval(timer); }
+
+    // Controls
+    window.addEventListener('keydown',e=>{ if(e.key==='ArrowLeft') left=true; if(e.key==='ArrowRight') right=true; if(e.code==='Space'){ if(ball.stuck){ ball.stuck=false; ball.dx = 0; ball.dy = -LEVELS[currentLevel].ballSpeed; } } if(e.key==='p' || e.key==='P'){ togglePause(); } });
+    window.addEventListener('keyup',e=>{ if(e.key==='ArrowLeft') left=false; if(e.key==='ArrowRight') right=false; });
+
+    // touch / mouse
+    canvas.addEventListener('mousemove',e=>{ const r = canvas.getBoundingClientRect(); touchX = (e.clientX - r.left) * (canvas.width / r.width); });
+    canvas.addEventListener('mouseleave',()=>{ touchX=null; });
+    canvas.addEventListener('touchmove',e=>{ e.preventDefault(); const r=canvas.getBoundingClientRect(); const t=e.touches[0]; touchX = (t.clientX - r.left) * (canvas.width / r.width); },{passive:false});
+    canvas.addEventListener('click',()=>{ if(ball.stuck){ ball.stuck=false; ball.dx=0; ball.dy=-LEVELS[currentLevel].ballSpeed; } });
+
+    // UI hooks
+    document.getElementById('startBtn').addEventListener('click',()=>{ setLevel(1); resetGame(false); startLoop(); });
+    document.getElementById('startLevelBtn').addEventListener('click',()=>{ setLevel(2); resetGame(false); startLoop(); });
+    document.getElementById('pauseBtn').addEventListener('click',()=>{ togglePause(); });
+    document.getElementById('resetBtn').addEventListener('click',()=>{ if(confirm('Reset game to Level 1 and clear scores?')){ localStorage.removeItem(LB_KEY); resetGame(true); document.getElementById('startOverlay').style.display='flex'; stopLoop(); } });
+
+    function togglePause(){ if(running){ stopLoop(); document.getElementById('startOverlay').style.display='flex'; } else { document.getElementById('startOverlay').style.display='none'; startLoop(); } }
+
+    // Game over / save & judge
+    const modal = document.getElementById('gameOver'); const finalScoreEl = document.getElementById('finalScore'); const systemJudgeEl = document.getElementById('systemJudge');
+    document.getElementById('playAgainBtn').addEventListener('click',()=>{ modal.classList.remove('show'); setLevel(1); resetGame(false); startLoop(); });
+    document.getElementById('mainMenuBtn').addEventListener('click',()=>{ modal.classList.remove('show'); document.getElementById('startOverlay').style.display='flex'; resetGame(true); stopLoop(); });
+
+    function systemJudge(s){ if(s < 200) return 'Bot detected'; if(s < 500) return 'Human'; return 'Verified Human'; }
+
+    function onGameOver(){ stopLoop(); finalScoreEl.textContent = score; const res = systemJudge(score); systemJudgeEl.textContent = res; playSound('gameover'); modal.classList.add('show'); // save to local leaderboard
+      const entry = {score, judge: res, level: currentLevel, date: new Date().toISOString()}; const arr = JSON.parse(localStorage.getItem(LB_KEY) || '[]'); arr.push(entry); localStorage.setItem(LB_KEY, JSON.stringify(arr)); }
+
+    function showWin(){ stopLoop(); finalScoreEl.textContent = score; systemJudgeEl.textContent = systemJudge(score); document.getElementById('goTitle').textContent = 'YOU WIN!'; playSound('gameover'); modal.classList.add('show'); }
+
+    // init
+    setLevel(1); resetGame(false); draw(); updateHUD();
+
+  </script>
+</body>
+</html>
